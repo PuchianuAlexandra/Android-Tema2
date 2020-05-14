@@ -158,7 +158,7 @@ public class RecycleViewFragment extends Fragment {
         String json = null;
 
         try {
-            InputStream stream = getActivity().getAssets().open("users_names.json");
+            InputStream stream = getActivity().getAssets().open("users_name.json");
             int size = stream.available();
             byte[] buffer = new byte[size];
 
