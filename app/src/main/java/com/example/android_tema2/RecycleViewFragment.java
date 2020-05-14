@@ -1,7 +1,9 @@
 package com.example.android_tema2;
 
 import android.app.ProgressDialog;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -23,6 +25,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class RecycleViewFragment extends Fragment {
 
@@ -31,7 +34,6 @@ public class RecycleViewFragment extends Fragment {
     private RecyclerView recyclerView;
     private RecyclerView.Adapter adapter;
     private List<User> users;
-    private AppDatabase appDatabase;
 
 
     @Override
@@ -46,11 +48,14 @@ public class RecycleViewFragment extends Fragment {
         Button btnDelete=view.findViewById(R.id.btnDelete);
         Button btnSync=view.findViewById(R.id.btnSync);
 
-        appDatabase= Room.databaseBuilder(getContext(),AppDatabase.class,"database")
-                .allowMainThreadQueries()
-                .build();
-
-        users=appDatabase.userDao().getAllUsers();
+        AsyncTask<String,Void,List<User>> task=new SaveDataAsync().execute(null,null);
+        try {
+            users=task.get();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter=new UserAdapter(users);
         recyclerView.setAdapter(adapter);
@@ -58,14 +63,26 @@ public class RecycleViewFragment extends Fragment {
         btnAdd.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                addData();
+                try {
+                    addData();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         });
 
         btnDelete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                deleteData();
+                try {
+                    deleteData();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         });
 
@@ -78,15 +95,15 @@ public class RecycleViewFragment extends Fragment {
         return view;
     }
 
-    private void addData() {
+    private void addData() throws ExecutionException, InterruptedException {
         if(txtFirstName.getText().toString().equals("") || txtLastName.getText().toString().equals("")){
             Toast toast=Toast.makeText(getContext(),"You have to insert the full name",Toast.LENGTH_LONG);
             toast.show();
         }
         else{
-            User user=new User(txtFirstName.getText().toString(),txtLastName.getText().toString());
-            appDatabase.userDao().insertUser(user);
-            users=appDatabase.userDao().getAllUsers();
+             AsyncTask<String, Void, List<User>> task = new SaveDataAsync().execute(txtFirstName.getText().toString(),txtLastName.getText().toString());
+
+            users=task.get();
             recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
             adapter=new UserAdapter(users);
             recyclerView.setAdapter(adapter);
@@ -95,18 +112,20 @@ public class RecycleViewFragment extends Fragment {
         }
     }
 
-    private void deleteData() {
+    private void deleteData() throws ExecutionException, InterruptedException {
         if(txtFirstName.getText().toString().equals("") || txtLastName.getText().toString().equals("")){
             Toast toast=Toast.makeText(getContext(),"You have to insert the full name",Toast.LENGTH_LONG);
             toast.show();
         }
         else{
-            int deleted=appDatabase.userDao().deleteUser(txtFirstName.getText().toString(),txtLastName.getText().toString());
-
+            AsyncTask<String,Void, Pair<Integer,List<User>>> task=new DeleteDataAsync().execute(txtFirstName.getText().toString(),txtLastName.getText().toString());
+            Pair<Integer,List<User>> results= task.get();
+            int deleted=results.first;
             if(deleted != 0){
                 Toast toast = Toast.makeText(getContext(), deleted + " " + " user(s) deleted", Toast.LENGTH_LONG);
                 toast.show();
-                users=appDatabase.userDao().getAllUsers();
+
+                users=results.second;
                 recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
                 adapter=new UserAdapter(users);
                 recyclerView.setAdapter(adapter);
@@ -126,20 +145,19 @@ public class RecycleViewFragment extends Fragment {
         try {
         JSONObject object = new JSONObject(loadJsonFromAssets());
         JSONArray array = object.getJSONArray("users");
-
+        AsyncTask<String, Void, List<User>> task = null;
         for (int index = 0; index < array.length(); index++) {
             JSONObject innerObject = array.getJSONObject(index);
             String firstName = innerObject.getString("firstname");
             String lastName = innerObject.getString("lastname");
             User user = new User(firstName, lastName);
 
-            appDatabase.userDao().insertUser(user);
-            users = appDatabase.userDao().getAllUsers();
+            task=new SaveDataAsync().execute(firstName,lastName);
+        }
+            users = task.get();
             recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
             adapter = new UserAdapter(users);
             recyclerView.setAdapter(adapter);
-        }
-
         progressDialog.dismiss();
 
         Toast toast = Toast.makeText(getContext(), "Data fetched", Toast.LENGTH_LONG);
@@ -151,8 +169,12 @@ public class RecycleViewFragment extends Fragment {
 
         Toast toast = Toast.makeText(getContext(), "Data could not be fetched", Toast.LENGTH_LONG);
         toast.show();
+    } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
     }
-}
 
     private String loadJsonFromAssets() {
         String json = null;
